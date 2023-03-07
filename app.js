@@ -31,6 +31,7 @@ const userSchema = new mongoose.Schema({
   username: "String",
   password: "String",
   googleId: "String",
+  secret: "String",
 });
 userSchema.plugin(passportLocalMongoose);
 userSchema.plugin(findOrCreate);
@@ -97,17 +98,38 @@ app.get("/logout", function (req, res, next) {
 });
 
 app.get("/submit", (req, res) => {
-  res.render("submit");
+  if (req.isAuthenticated()) {
+    res.render("submit");
+  } else res.redirect("/login");
 });
 
 app.post("/submit", (req, res) => {
-  res.render("submit");
+  const userSecret = req.body.secret;
+  User.findById(req.user.id, (err, foundUser) => {
+    if (!err) {
+      foundUser.secret = userSecret;
+      foundUser.save((err) => {
+        if (!err) res.redirect("/secrets");
+      });
+    } else {
+      console.log(err);
+    }
+  });
 });
 
 app.get("/secrets", (req, res) => {
   if (req.isAuthenticated()) {
-    res.render("secrets");
-  } else res.redirect("/login");
+    User.find({ secret: { $ne: null } }, (err, foundUser) => {
+      if (err) console.log(err);
+      else {
+        if (foundUser) {
+          res.render("secrets", { usersWithSecrets: foundUser });
+        }
+      }
+    });
+  } else {
+    res.redirect("/login");
+  }
 });
 
 app.post(
@@ -128,7 +150,7 @@ app.post("/register", (req, res) => {
     req.body.password,
     (err, user) => {
       if (err) {
-        console.log(err);
+        res.redirect("/register");
       } else {
         passport.authenticate("local")(req, res, () => {
           res.redirect("/secrets");
